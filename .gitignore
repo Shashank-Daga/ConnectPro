@@ -1,0 +1,58 @@
+﻿# ==============================
+# ConnectPro - Root Git Ignore
+# ==============================
+
+# ---------- IDE ----------
+.idea/
+**/.idea/
+
+# ---------- Android ----------
+android/.gradle/
+android/local.properties/
+android/**/build/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+
+# Kotlin/Java generated files
+*.class
+
+# ---------- Gradle ----------
+.gradle/
+**/.gradle/
+
+# ---------- Build outputs ----------
+build/
+**/build/
+
+# ---------- Local environment ----------
+.env
+.env.*
+!.env.example
+
+# ---------- Secrets ----------
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+
+# ---------- Firebase ----------
+google-services.json
+
+# ---------- Logs ----------
+*.log
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Temporary files ----------
+*.tmp
+*.temp
+*.swp
+*~
+
+# ---------- Coverage ----------
+coverage/
