@@ -1,4 +1,3 @@
-
 package com.connectpro.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+
 import com.connectpro.ui.theme.ConnectProSpacing
+import com.connectpro.ui.screens.EmergencyActivationCard
 
 @Composable
 fun HomeScreen(
@@ -44,6 +45,12 @@ fun HomeScreen(
         )
     ) {
         HomeIntroduction()
+
+        // Emergency activation
+        EmergencyActivationCard()
+
+        // Phase E1: On-demand location and permission foundation
+        LocationPermissionCard()
 
         TrustedNetworkCard(
             onOpenTrustedContacts = onOpenTrustedContacts

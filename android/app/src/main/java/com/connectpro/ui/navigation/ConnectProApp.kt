@@ -1,4 +1,3 @@
-
 package com.connectpro.ui.navigation
 
 import androidx.compose.foundation.Canvas
@@ -25,10 +24,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+
 import com.connectpro.ui.screens.ActivityScreen
 import com.connectpro.ui.screens.HomeScreen
 import com.connectpro.ui.screens.ProfileScreen
 import com.connectpro.ui.screens.TrustedContactsScreen
+import com.connectpro.data.auth.AuthRepository
+import com.connectpro.data.network.ApiClient
+import com.connectpro.ui.screens.AuthScreen
+
+import kotlinx.coroutines.launch
 
 private enum class AppDestination(
     val title: String,
@@ -55,13 +63,39 @@ private enum class AppDestination(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectProApp() {
+    val context = LocalContext.current
+
+    val apiClient = remember {
+        ApiClient(context.applicationContext)
+    }
+
+    val authRepository = remember {
+        AuthRepository(apiClient)
+    }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    var isAuthenticated by rememberSaveable {
+        mutableStateOf(apiClient.sessionManager.hasSession())
+    }
+
     var selectedDestination by rememberSaveable {
         mutableStateOf(AppDestination.HOME)
     }
 
+    if (!isAuthenticated) {
+        AuthScreen(
+            repository = authRepository,
+            onAuthenticated = {
+                isAuthenticated = true
+                selectedDestination = AppDestination.HOME
+            }
+        )
+        return
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
 
         topBar = {
             TopAppBar(
@@ -70,43 +104,27 @@ fun ConnectProApp() {
                         text = selectedDestination.title,
                         style = MaterialTheme.typography.titleLarge
                     )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                }
             )
         },
 
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                tonalElevation = 3.dp,
-                windowInsets = NavigationBarDefaults.windowInsets
-            ) {
+            NavigationBar {
                 AppDestination.entries.forEach { destination ->
                     NavigationBarItem(
                         selected = selectedDestination == destination,
-
                         onClick = {
                             selectedDestination = destination
                         },
-
                         icon = {
                             DestinationIcon(
                                 destination = destination,
                                 selected = selectedDestination == destination
                             )
                         },
-
                         label = {
-                            Text(
-                                text = destination.label,
-                                style = MaterialTheme.typography.labelMedium
-                            )
+                            Text(destination.label)
                         },
-
                         alwaysShowLabel = true
                     )
                 }
@@ -137,7 +155,20 @@ fun ConnectProApp() {
                 }
 
                 AppDestination.PROFILE -> {
-                    ProfileScreen()
+                    ProfileScreen(
+                        onLogout = {
+                            coroutineScope.launch {
+                                try {
+                                    authRepository.logout()
+                                } finally {
+                                    apiClient.sessionManager.clear()
+                                    isAuthenticated = false
+                                    selectedDestination =
+                                        AppDestination.HOME
+                                }
+                            }
+                        }
+                    )
                 }
             }
         }
