@@ -25,6 +25,20 @@ val normalizedReleaseApiBaseUrl =
         "$configuredReleaseApiBaseUrl/"
     }
 
+// Release signing credentials are read from environment variables.
+// Never store these values in source code or commit them to Git.
+val releaseKeystorePath =
+    providers.environmentVariable("CONNECTPRO_KEYSTORE_PATH").orNull.orEmpty()
+
+val releaseKeyAlias =
+    providers.environmentVariable("CONNECTPRO_KEY_ALIAS").orNull.orEmpty()
+
+val releaseStorePassword =
+    providers.environmentVariable("CONNECTPRO_STORE_PASSWORD").orNull
+
+val releaseKeyPassword =
+    providers.environmentVariable("CONNECTPRO_KEY_PASSWORD").orNull
+
 val validateReleaseApiBaseUrl = tasks.register(
     "validateReleaseApiBaseUrl"
 ) {
@@ -53,12 +67,52 @@ val validateReleaseApiBaseUrl = tasks.register(
     }
 }
 
+val validateReleaseSigningConfig = tasks.register(
+    "validateReleaseSigningConfig"
+) {
+    group = "verification"
+    description = "Validates the Android release signing configuration."
+
+    doLast {
+        if (releaseKeystorePath.isBlank()) {
+            throw org.gradle.api.GradleException(
+                "Missing CONNECTPRO_KEYSTORE_PATH environment variable."
+            )
+        }
+
+        if (!file(releaseKeystorePath).isFile) {
+            throw org.gradle.api.GradleException(
+                "Release keystore file was not found at the configured path."
+            )
+        }
+
+        if (releaseKeyAlias.isBlank()) {
+            throw org.gradle.api.GradleException(
+                "Missing CONNECTPRO_KEY_ALIAS environment variable."
+            )
+        }
+
+        if (releaseStorePassword.isNullOrBlank()) {
+            throw org.gradle.api.GradleException(
+                "Missing CONNECTPRO_STORE_PASSWORD environment variable."
+            )
+        }
+
+        if (releaseKeyPassword.isNullOrBlank()) {
+            throw org.gradle.api.GradleException(
+                "Missing CONNECTPRO_KEY_PASSWORD environment variable."
+            )
+        }
+    }
+}
+
 // Validate only when Gradle is building the release variant.
 // Debug builds can continue using the local emulator URL.
 tasks.matching {
     it.name == "preReleaseBuild"
 }.configureEach {
     dependsOn(validateReleaseApiBaseUrl)
+    dependsOn(validateReleaseSigningConfig)
 }
 
 android {
@@ -85,6 +139,20 @@ android {
         )
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = if (releaseKeystorePath.isBlank()) {
+                null
+            } else {
+                file(releaseKeystorePath)
+            }
+
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         debug {
             // Development only: permits a local HTTP backend.
@@ -92,7 +160,9 @@ android {
         }
 
         release {
-            // Override the default development URL.
+            // Use the dedicated release signing key.
+            signingConfig = signingConfigs.getByName("release")
+
             // Release builds must configure CONNECTPRO_API_BASE_URL.
             buildConfigField(
                 "String",

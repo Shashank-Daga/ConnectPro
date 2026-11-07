@@ -1,6 +1,7 @@
 package com.connectpro.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record UpdateEmergencyContactRequest(
@@ -10,7 +11,10 @@ public record UpdateEmergencyContactRequest(
         String name,
 
         @NotBlank
-        @Size(max = 30)
+        @Pattern(
+                regexp = "^[0-9]{10}$",
+                message = "Phone number must contain exactly 10 digits"
+        )
         String phoneNumber,
 
         @NotBlank

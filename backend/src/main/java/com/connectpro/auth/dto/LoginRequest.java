@@ -8,8 +8,8 @@ public record LoginRequest(
 
         @NotBlank(message = "Phone number is required")
         @Pattern(
-                regexp = "^\\+[1-9]\\d{7,14}$",
-                message = "Phone number must be in international format"
+                regexp = "^[0-9]{10}$",
+                message = "Phone number must contain exactly 10 digits"
         )
         String phoneNumber,
 

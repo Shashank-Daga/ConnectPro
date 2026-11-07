@@ -1,5 +1,7 @@
+
 package com.connectpro.user.service;
 
+import com.connectpro.common.exception.InvalidRequestException;
 import com.connectpro.common.exception.ResourceNotFoundException;
 import com.connectpro.common.security.AuthenticatedUser;
 import com.connectpro.user.dto.CreateEmergencyContactRequest;
@@ -40,6 +42,11 @@ public class EmergencyContactService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found"));
+
+        validateNotOwnPhoneNumber(
+                user,
+                request.phoneNumber()
+        );
 
         EmergencyContact contact = new EmergencyContact(
                 user,
@@ -92,6 +99,15 @@ public class EmergencyContactService {
         EmergencyContact contact = findOwnedContact(
                 userId,
                 contactId
+        );
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+
+        validateNotOwnPhoneNumber(
+                user,
+                request.phoneNumber()
         );
 
         contact.update(
@@ -150,6 +166,34 @@ public class EmergencyContactService {
         contact.deactivate();
 
         return toResponse(contact);
+    }
+
+    private void validateNotOwnPhoneNumber(
+            User user,
+            String submittedPhoneNumber
+    ) {
+        String registeredPhone = normalizePhoneNumber(
+                user.getPhoneNumber()
+        );
+
+        String contactPhone = normalizePhoneNumber(
+                submittedPhoneNumber
+        );
+
+        if (!registeredPhone.isEmpty()
+                && registeredPhone.equals(contactPhone)) {
+            throw new InvalidRequestException(
+                    "You cannot add your own phone number as a trusted contact."
+            );
+        }
+    }
+
+    private String normalizePhoneNumber(String phoneNumber) {
+        if (phoneNumber == null) {
+            return "";
+        }
+
+        return phoneNumber.replaceAll("[^0-9]", "");
     }
 
     private EmergencyContact findOwnedContact(

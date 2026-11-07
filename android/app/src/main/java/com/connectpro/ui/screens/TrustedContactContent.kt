@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -27,11 +28,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.connectpro.data.contacts.EmergencyContactRepository
 import com.connectpro.data.contacts.EmergencyContactResponse
 import com.connectpro.data.network.ApiClient
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -69,11 +72,30 @@ fun TrustedContactsContent() {
 
     fun readableError(error: Throwable): String {
         return when (error) {
-            is HttpException -> when (error.code()) {
-                401 -> "Your session has expired. Please sign in again."
-                403 -> "You are not allowed to perform this action."
-                400 -> "The server rejected the request. Check the contact details."
-                else -> "Request failed (HTTP ${error.code()}). Please try again."
+            is HttpException -> {
+                val serverMessage = try {
+                    val body = error.response()
+                        ?.errorBody()
+                        ?.string()
+
+                    if (body.isNullOrBlank()) {
+                        null
+                    } else {
+                        JSONObject(body)
+                            .optString("message")
+                            .takeIf { it.isNotBlank() && it != "null" }
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+
+                when (error.code()) {
+                    401 -> "Your session has expired. Please sign in again."
+                    403 -> "You are not allowed to perform this action."
+                    400 -> serverMessage
+                        ?: "The server rejected the request. Check the contact details."
+                    else -> "Request failed (HTTP ${error.code()}). Please try again."
+                }
             }
 
             is IOException ->
@@ -133,10 +155,16 @@ fun TrustedContactsContent() {
         }
 
         if (name.trim().length > 100 ||
-            phoneNumber.trim().length > 30 ||
             relationship.trim().length > 50
         ) {
             formError = "One or more fields exceed the allowed length."
+            return
+        }
+
+        if (phoneNumber.trim().length != 10 ||
+            !phoneNumber.trim().all(Char::isDigit)
+        ) {
+            formError = "Phone number must contain exactly 10 digits."
             return
         }
 
@@ -371,8 +399,15 @@ fun TrustedContactsContent() {
 
                     OutlinedTextField(
                         value = phoneNumber,
-                        onValueChange = { phoneNumber = it },
-                        label = { Text("Phone number") },
+                        onValueChange = {
+                            if (it.length <= 10 && it.all(Char::isDigit)) {
+                                phoneNumber = it
+                            }
+                        },
+                        label = { Text("10-digit phone number") },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number
+                        ),
                         singleLine = true,
                         enabled = !isSaving,
                         modifier = Modifier.fillMaxWidth()

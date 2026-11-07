@@ -21,6 +21,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.connectpro.data.emergency.EmergencyIncidentRepository
+import com.connectpro.data.emergency.EmergencyHistoryRepository
 import com.connectpro.data.location.LocationProvider
 import com.connectpro.data.location.LocationResult
 import com.connectpro.data.network.ApiClient
@@ -60,6 +62,12 @@ fun EmergencyActivationCard() {
         )
     }
 
+    val historyRepository = remember(context) {
+        EmergencyHistoryRepository(
+            ApiClient(context.applicationContext)
+        )
+    }
+
     val locationProvider = remember(context) {
         LocationProvider(context.applicationContext)
     }
@@ -69,38 +77,131 @@ fun EmergencyActivationCard() {
     var showConfirmation by rememberSaveable {
         mutableStateOf(false)
     }
+
+    var showCancelConfirmation by rememberSaveable {
+        mutableStateOf(false)
+    }
+
     var selectedCategory by rememberSaveable {
         mutableStateOf("PERSONAL_THREAT")
     }
+
     var shareLocation by rememberSaveable {
         mutableStateOf(false)
     }
+
     var pendingShareLocation by rememberSaveable {
         mutableStateOf(false)
     }
 
-    // Loading represents an in-flight request, so do not restore it.
+    // Restore the current incident from the backend whenever Home is opened.
+    var isRestoring by remember {
+        mutableStateOf(true)
+    }
+
+    var canStartEmergency by remember {
+        mutableStateOf(false)
+    }
+
     var isLoading by remember {
         mutableStateOf(false)
     }
+
     var incidentId by rememberSaveable {
         mutableStateOf<String?>(null)
     }
+
     var isActive by rememberSaveable {
         mutableStateOf(false)
     }
+
     var errorMessage by remember {
         mutableStateOf<String?>(null)
     }
+
     var locationStatusMessage by remember {
         mutableStateOf<String?>(null)
     }
 
+    // Reset the local UI after the backend confirms cancellation.
+    fun completeCancellation() {
+        incidentId = null
+        isActive = false
+        canStartEmergency = true
+
+        showCancelConfirmation = false
+
+        errorMessage = null
+
+        locationStatusMessage =
+            "Your emergency request has been cancelled successfully."
+    }
+
+    // Restore the latest unresolved incident from the backend.
+    fun refreshIncidentState() {
+        if (isLoading) return
+
+        scope.launch {
+            isRestoring = true
+            canStartEmergency = false
+            errorMessage = null
+
+            try {
+                val currentIncident = historyRepository
+                    .getEmergencyHistory()
+                    .firstOrNull {
+                        it.status == "ACTIVE" || it.status == "CREATED"
+                    }
+
+                if (currentIncident != null) {
+                    incidentId = currentIncident.id
+                    isActive = currentIncident.status == "ACTIVE"
+
+                    locationStatusMessage = if (isActive) {
+                        "Your active emergency request was restored from your account."
+                    } else {
+                        null
+                    }
+
+                    canStartEmergency = false
+                } else {
+                    incidentId = null
+                    isActive = false
+                    locationStatusMessage = null
+                    canStartEmergency = true
+                }
+
+            } catch (exception: CancellationException) {
+                throw exception
+
+            } catch (_: Exception) {
+                canStartEmergency = false
+
+                errorMessage =
+                    "Unable to check your existing emergency request. Please retry the status check before creating another request."
+
+            } finally {
+                isRestoring = false
+            }
+        }
+    }
+
+    LaunchedEffect(historyRepository) {
+        refreshIncidentState()
+    }
+
+    // Create and activate an emergency incident.
     fun startEmergency(shouldShareLocation: Boolean) {
-        if (isLoading || incidentId != null) return
+        if (
+            isLoading ||
+            isRestoring ||
+            !canStartEmergency ||
+            incidentId != null
+        ) return
 
         scope.launch {
             isLoading = true
+            canStartEmergency = false
             errorMessage = null
             locationStatusMessage = null
 
@@ -108,6 +209,7 @@ fun EmergencyActivationCard() {
                 val created = repository.createIncident(
                     selectedCategory
                 )
+
                 incidentId = created.id
 
                 if (shouldShareLocation) {
@@ -126,13 +228,14 @@ fun EmergencyActivationCard() {
                                     incidentId = created.id,
                                     location = locationResult.location
                                 )
+
                                 locationStatusMessage =
                                     "Initial emergency location shared successfully."
+
                             } catch (exception: CancellationException) {
                                 throw exception
+
                             } catch (exception: Exception) {
-                                // The upload might have reached the server
-                                // even when its response was lost.
                                 val snapshotExists = try {
                                     repository.getLocationSnapshot(
                                         created.id
@@ -190,7 +293,6 @@ fun EmergencyActivationCard() {
                         "Location was not shared. You did not opt in to location sharing."
                 }
 
-                // Location sharing is optional and must not prevent activation.
                 val activated = repository.activateIncident(created.id)
 
                 if (activated.status == "ACTIVE") {
@@ -200,11 +302,11 @@ fun EmergencyActivationCard() {
                     errorMessage =
                         "Incident created, but activation is not confirmed. Use Retry activation."
                 }
+
             } catch (exception: CancellationException) {
                 throw exception
+
             } catch (_: Exception) {
-                // If activation succeeded but its response was lost, reconcile
-                // the existing incident rather than creating another one.
                 val currentIncidentId = incidentId
 
                 val serverStatus = if (currentIncidentId != null) {
@@ -245,14 +347,17 @@ fun EmergencyActivationCard() {
                         }
                     }
                 }
+
             } finally {
                 isLoading = false
             }
         }
     }
 
+    // Retry activation for an incident that is still in CREATED state.
     fun retryActivation() {
         val currentIncidentId = incidentId ?: return
+
         if (isLoading || isActive) return
 
         scope.launch {
@@ -260,7 +365,6 @@ fun EmergencyActivationCard() {
             errorMessage = null
 
             try {
-                // Always retrieve the current server state first.
                 val currentIncident = repository.getIncident(
                     currentIncidentId
                 )
@@ -282,11 +386,11 @@ fun EmergencyActivationCard() {
                                 errorMessage =
                                     "The server returned status ${response.status}. Activation is not confirmed."
                             }
+
                         } catch (exception: CancellationException) {
                             throw exception
+
                         } catch (_: Exception) {
-                            // Activation may have succeeded even though the
-                            // response was lost. Recheck the same incident.
                             val reconciledStatus = try {
                                 repository.getIncident(
                                     currentIncidentId
@@ -313,11 +417,115 @@ fun EmergencyActivationCard() {
                             "The incident is ${currentIncident.status}. It cannot be activated from its current state."
                     }
                 }
+
             } catch (exception: CancellationException) {
                 throw exception
+
             } catch (_: Exception) {
                 errorMessage =
                     "The incident status could not be retrieved. Check your connection and retry."
+
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    // Cancel an ACTIVE or CREATED emergency incident.
+    fun cancelEmergency() {
+        val currentIncidentId = incidentId ?: return
+
+        if (isLoading || isRestoring) return
+
+        scope.launch {
+            isLoading = true
+            errorMessage = null
+
+            try {
+                val response = repository.cancelIncident(
+                    currentIncidentId
+                )
+
+                when (response.status) {
+                    "CANCELLED" -> {
+                        completeCancellation()
+                    }
+
+                    "RESOLVED" -> {
+                        completeCancellation()
+                        locationStatusMessage =
+                            "This emergency incident has already been resolved."
+                    }
+
+                    else -> {
+                        // Check the server's actual status before deciding
+                        // whether the incident is still active.
+                        val verifiedStatus = repository.getIncident(
+                            currentIncidentId
+                        ).status
+
+                        when (verifiedStatus) {
+                            "CANCELLED" -> completeCancellation()
+
+                            "RESOLVED" -> {
+                                completeCancellation()
+                                locationStatusMessage =
+                                    "This emergency incident has already been resolved."
+                            }
+
+                            "ACTIVE", "CREATED" -> {
+                                errorMessage =
+                                    "Cancellation was not completed. The emergency request is still ${verifiedStatus.lowercase()}. Please try again."
+                            }
+
+                            else -> {
+                                errorMessage =
+                                    "The cancellation status could not be confirmed. Please check your incident status."
+                            }
+                        }
+                    }
+                }
+
+            } catch (exception: CancellationException) {
+                throw exception
+
+            } catch (_: Exception) {
+                // A cancellation request might have reached the backend
+                // even if the response was lost. Verify before retrying.
+                val verifiedStatus = try {
+                    repository.getIncident(
+                        currentIncidentId
+                    ).status
+                } catch (
+                    verificationCancellation: CancellationException
+                ) {
+                    throw verificationCancellation
+                } catch (_: Exception) {
+                    null
+                }
+
+                when (verifiedStatus) {
+                    "CANCELLED" -> {
+                        completeCancellation()
+                    }
+
+                    "RESOLVED" -> {
+                        completeCancellation()
+                        locationStatusMessage =
+                            "This emergency incident has already been resolved."
+                    }
+
+                    "ACTIVE", "CREATED" -> {
+                        errorMessage =
+                            "Cancellation could not be confirmed. Your emergency request is still ${verifiedStatus.lowercase()}. You can retry cancellation."
+                    }
+
+                    else -> {
+                        errorMessage =
+                            "Unable to confirm cancellation. Check your connection and retry. Your existing incident has been kept on screen."
+                    }
+                }
+
             } finally {
                 isLoading = false
             }
@@ -327,8 +535,6 @@ fun EmergencyActivationCard() {
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        // Continue even if permission is denied; the location provider
-        // checks the actual permission state.
         startEmergency(pendingShareLocation)
     }
 
@@ -362,7 +568,7 @@ fun EmergencyActivationCard() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            if (isLoading) {
+            if (isRestoring || isLoading) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(
@@ -370,14 +576,35 @@ fun EmergencyActivationCard() {
                     )
                 ) {
                     CircularProgressIndicator()
-                    Text("Processing emergency request…")
+
+                    Text(
+                        if (isRestoring) {
+                            "Checking existing emergency request…"
+                        } else {
+                            "Processing emergency request…"
+                        }
+                    )
                 }
+
             } else if (isActive) {
                 Text(
                     text = "Incident status: ACTIVE",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.error
                 )
+
+                TextButton(
+                    onClick = {
+                        showCancelConfirmation = true
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Cancel emergency request",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
             } else if (incidentId != null) {
                 Button(
                     onClick = { retryActivation() },
@@ -385,7 +612,20 @@ fun EmergencyActivationCard() {
                 ) {
                     Text("Retry activation")
                 }
-            } else {
+
+                TextButton(
+                    onClick = {
+                        showCancelConfirmation = true
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Cancel emergency request",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+            } else if (canStartEmergency) {
                 Button(
                     onClick = {
                         errorMessage = null
@@ -394,6 +634,14 @@ fun EmergencyActivationCard() {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Request emergency assistance")
+                }
+
+            } else {
+                Button(
+                    onClick = { refreshIncidentState() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Retry status check")
                 }
             }
 
@@ -431,6 +679,7 @@ fun EmergencyActivationCard() {
         }
     }
 
+    // Existing emergency activation confirmation dialog.
     if (showConfirmation) {
         AlertDialog(
             onDismissRequest = {
@@ -494,7 +743,7 @@ fun EmergencyActivationCard() {
             },
             confirmButton = {
                 TextButton(
-                    enabled = !isLoading,
+                    enabled = !isLoading && !isRestoring && canStartEmergency,
                     onClick = {
                         showConfirmation = false
 
@@ -523,6 +772,67 @@ fun EmergencyActivationCard() {
                     }
                 ) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // New emergency cancellation confirmation dialog.
+    if (showCancelConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isLoading) {
+                    showCancelConfirmation = false
+                }
+            },
+            title = {
+                Text("Cancel emergency request?")
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(
+                        ConnectProSpacing.Small
+                    )
+                ) {
+                    Text(
+                        "Are you sure you want to cancel this emergency request?"
+                    )
+
+                    Text(
+                        text = "The incident will be marked as CANCELLED and will no longer appear as an active emergency in ConnectPro.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = "Notifications already delivered to trusted contacts cannot be recalled.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isLoading,
+                    onClick = {
+                        showCancelConfirmation = false
+                        cancelEmergency()
+                    }
+                ) {
+                    Text(
+                        text = "Confirm cancellation",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isLoading,
+                    onClick = {
+                        showCancelConfirmation = false
+                    }
+                ) {
+                    Text("Keep active")
                 }
             }
         )

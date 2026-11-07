@@ -1,3 +1,4 @@
+
 package com.connectpro.data.emergency
 
 import com.connectpro.data.location.CurrentLocation
@@ -7,6 +8,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 class EmergencyIncidentRepository(apiClient: ApiClient) {
+
     private val api = apiClient.authenticatedRetrofitInstance
         .create(EmergencyIncidentApi::class.java)
 
@@ -22,6 +24,12 @@ class EmergencyIncidentRepository(apiClient: ApiClient) {
         incidentId: String
     ): EmergencyIncidentResponse {
         return api.activateIncident(incidentId)
+    }
+
+    suspend fun cancelIncident(
+        incidentId: String
+    ): EmergencyIncidentResponse {
+        return api.cancelIncident(incidentId)
     }
 
     suspend fun saveLocationSnapshot(

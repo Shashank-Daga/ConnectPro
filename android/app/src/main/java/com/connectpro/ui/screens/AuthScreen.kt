@@ -95,13 +95,16 @@ fun AuthScreen(
                 value.all { it.isLetterOrDigit() }
 
     fun validPhone(value: String): Boolean =
-        Regex("^\\+[1-9]\\d{7,14}$").matches(value.trim())
+        Regex("^[0-9]{10}$").matches(value.trim())
 
     fun validEmail(value: String): Boolean =
         android.util.Patterns.EMAIL_ADDRESS
             .matcher(value.trim())
             .matches() &&
                 value.trim().length <= 254
+
+    fun validResetIdentifier(value: String): Boolean =
+        validPhone(value) || validEmail(value)
 
     Column(
         modifier = Modifier
@@ -131,10 +134,14 @@ fun AuthScreen(
             AuthMode.LOGIN -> {
                 OutlinedTextField(
                     value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
-                    label = { Text("Phone number (+country code)") },
+                    onValueChange = {
+                        if (it.length <= 10 && it.all(Char::isDigit)) {
+                            phoneNumber = it
+                        }
+                    },
+                    label = { Text("10-digit phone number") },
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Phone
+                        keyboardType = KeyboardType.Number
                     ),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -156,7 +163,7 @@ fun AuthScreen(
                     onClick = {
                         when {
                             !validPhone(phoneNumber) ->
-                                message = "Enter a valid international phone number."
+                                message = "Enter a valid 10-digit phone number."
                             !validPin(pin) ->
                                 message = "PIN must be 6–64 letters or numbers."
                             else -> launchAction(
@@ -205,10 +212,14 @@ fun AuthScreen(
             AuthMode.REGISTER -> {
                 OutlinedTextField(
                     value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
-                    label = { Text("Phone number (+country code)") },
+                    onValueChange = {
+                        if (it.length <= 10 && it.all(Char::isDigit)) {
+                            phoneNumber = it
+                        }
+                    },
+                    label = { Text("10-digit phone number") },
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Phone
+                        keyboardType = KeyboardType.Number
                     ),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -241,7 +252,7 @@ fun AuthScreen(
                     onClick = {
                         when {
                             !validPhone(phoneNumber) ->
-                                message = "Enter a valid international phone number."
+                                message = "Enter a valid 10-digit phone number."
                             !validEmail(email) ->
                                 message = "Enter a valid email address."
                             !validPin(pin) ->
@@ -388,15 +399,18 @@ fun AuthScreen(
                 OutlinedTextField(
                     value = resetIdentifier,
                     onValueChange = { resetIdentifier = it },
-                    label = { Text("Registered phone number or email") },
+                    label = { Text("10-digit phone number or email") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text
+                    ),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Button(
                     onClick = {
-                        if (resetIdentifier.isBlank()) {
-                            message = "Enter your registered phone number or email."
+                        if (!validResetIdentifier(resetIdentifier)) {
+                            message = "Enter a valid 10-digit phone number or email address."
                             isError = true
                         } else {
                             launchAction(
@@ -430,7 +444,10 @@ fun AuthScreen(
                 OutlinedTextField(
                     value = resetIdentifier,
                     onValueChange = { resetIdentifier = it },
-                    label = { Text("Registered phone number or email") },
+                    label = { Text("10-digit phone number or email") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text
+                    ),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -461,6 +478,10 @@ fun AuthScreen(
                 Button(
                     onClick = {
                         when {
+                            !validResetIdentifier(resetIdentifier) -> {
+                                message = "Enter a valid 10-digit phone number or email address."
+                                isError = true
+                            }
                             resetCode.length != 6 -> {
                                 message = "Enter the 6-digit reset code."
                                 isError = true

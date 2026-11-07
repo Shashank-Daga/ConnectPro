@@ -81,7 +81,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
                 {
-                    "phoneNumber": "+919876543211",
+                    "phoneNumber": "9876543211",
                     "email": "register.test@example.com",
                     "pin": "TestPin123"
                 }
@@ -94,7 +94,7 @@ class ConnectproBackendApplicationTests {
                 )
                 .andExpect(status().isCreated());
 
-        User user = userRepository.findByPhoneNumber("+919876543211")
+        User user = userRepository.findByPhoneNumber("9876543211")
                 .orElseThrow();
 
         assertThat(user.getEmail())
@@ -132,7 +132,7 @@ class ConnectproBackendApplicationTests {
     void loginReturnsAccessAndRefreshTokensForVerifiedUser() throws Exception {
 
         User user = new User(
-                "+919876543212",
+                "9876543212",
                 "login.test@example.com"
         );
 
@@ -151,7 +151,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543212",
+                "phoneNumber": "9876543212",
                 "pin": "TestPin123"
             }
             """;
@@ -181,7 +181,7 @@ class ConnectproBackendApplicationTests {
     void loginRejectsUnverifiedUser() throws Exception {
 
         User user = new User(
-                "+919876543213",
+                "9876543213",
                 "unverified.login@example.com"
         );
 
@@ -197,7 +197,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543213",
+                "phoneNumber": "9876543213",
                 "pin": "TestPin123"
             }
             """;
@@ -217,7 +217,7 @@ class ConnectproBackendApplicationTests {
     void refreshRotatesRefreshTokenAndRejectsOldToken() throws Exception {
 
         User user = new User(
-                "+919876543214",
+                "9876543214",
                 "refresh.test@example.com"
         );
 
@@ -236,7 +236,7 @@ class ConnectproBackendApplicationTests {
 
         String loginRequest = """
         {
-            "phoneNumber": "+919876543214",
+            "phoneNumber": "9876543214",
             "pin": "TestPin123"
         }
         """;
@@ -314,7 +314,7 @@ class ConnectproBackendApplicationTests {
     void pinResetRevokesExistingSessions() throws Exception {
 
         User user = new User(
-                "+919876543215",
+                "9876543215",
                 "pinreset.test@example.com"
         );
 
@@ -334,7 +334,7 @@ class ConnectproBackendApplicationTests {
         // Create an authenticated session.
         String loginRequest = """
         {
-            "phoneNumber": "+919876543215",
+            "phoneNumber": "9876543215",
             "pin": "TestPin123"
         }
         """;
@@ -367,7 +367,7 @@ class ConnectproBackendApplicationTests {
 
         String resetRequest = """
         {
-            "identifier": "+919876543215",
+            "identifier": "9876543215",
             "verificationCode": "%s",
             "newPin": "NewPin123"
         }
@@ -412,7 +412,7 @@ class ConnectproBackendApplicationTests {
     void logoutRevokesAuthenticatedSession() throws Exception {
 
         User user = new User(
-                "+919876543218",
+                "9876543218",
                 "logout.test@example.com"
         );
 
@@ -431,7 +431,7 @@ class ConnectproBackendApplicationTests {
 
         String loginRequest = """
             {
-                "phoneNumber": "+919876543218",
+                "phoneNumber": "9876543218",
                 "pin": "TestPin123"
             }
             """;
@@ -486,7 +486,7 @@ class ConnectproBackendApplicationTests {
     void validAccessTokenIsAcceptedByProtectedEndpoint() throws Exception {
 
         User user = new User(
-                "+919876543219",
+                "9876543219",
                 "jwt.valid.test@example.com"
         );
 
@@ -505,7 +505,7 @@ class ConnectproBackendApplicationTests {
 
         String loginRequest = """
             {
-                "phoneNumber": "+919876543219",
+                "phoneNumber": "9876543219",
                 "pin": "TestPin123"
             }
             """;
@@ -555,7 +555,7 @@ class ConnectproBackendApplicationTests {
     @Test
     void loginIsRateLimitedPerPhoneNumber() throws Exception {
 
-        String phone = "+919876543220";
+        String phone = "9876543220";
 
         User user = new User(
                 phone,
@@ -603,7 +603,7 @@ class ConnectproBackendApplicationTests {
     void phoneVerificationRejectsInvalidCode() throws Exception {
 
         User user = new User(
-                "+919876543222",
+                "9876543222",
                 "verification.invalid@example.com"
         );
 
@@ -616,7 +616,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543222",
+                "phoneNumber": "9876543222",
                 "verificationCode": "000000"
             }
             """;
@@ -629,7 +629,7 @@ class ConnectproBackendApplicationTests {
                 .andExpect(status().isUnauthorized());
 
         User reloaded = userRepository
-                .findByPhoneNumber("+919876543222")
+                .findByPhoneNumber("9876543222")
                 .orElseThrow();
 
         assertThat(reloaded.getPhoneVerifiedAt())
@@ -640,7 +640,7 @@ class ConnectproBackendApplicationTests {
     void usedPhoneVerificationCodeCannotBeReused() throws Exception {
 
         User user = new User(
-                "+919876543223",
+                "9876543223",
                 "verification.used@example.com"
         );
 
@@ -654,7 +654,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543223",
+                "phoneNumber": "9876543223",
                 "verificationCode": "%s"
             }
             """.formatted(verificationCode);
@@ -678,7 +678,7 @@ class ConnectproBackendApplicationTests {
     void creatingNewPhoneVerificationCodeInvalidatesPreviousCode() throws Exception {
 
         User user = new User(
-                "+919876543224",
+                "9876543224",
                 "verification.replace@example.com"
         );
 
@@ -701,7 +701,7 @@ class ConnectproBackendApplicationTests {
 
         String oldRequest = """
             {
-                "phoneNumber": "+919876543224",
+                "phoneNumber": "9876543224",
                 "verificationCode": "%s"
             }
             """.formatted(oldCode);
@@ -715,7 +715,7 @@ class ConnectproBackendApplicationTests {
 
         String newRequest = """
             {
-                "phoneNumber": "+919876543224",
+                "phoneNumber": "9876543224",
                 "verificationCode": "%s"
             }
             """.formatted(newCode);
@@ -732,7 +732,7 @@ class ConnectproBackendApplicationTests {
     void emailVerificationRejectsInvalidCode() throws Exception {
 
         User user = new User(
-                "+919876543225",
+                "9876543225",
                 "verification.email@example.com"
         );
 
@@ -769,7 +769,7 @@ class ConnectproBackendApplicationTests {
     void phoneVerificationIsRateLimited() throws Exception {
 
         User user = new User(
-                "+919876543226",
+                "9876543226",
                 "verification.rate@example.com"
         );
 
@@ -782,7 +782,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543226",
+                "phoneNumber": "9876543226",
                 "verificationCode": "000000"
             }
             """;
@@ -828,7 +828,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543227",
+                "phoneNumber": "9876543227",
                 "email": "not-an-email",
                 "pin": "TestPin123"
             }
@@ -847,7 +847,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543227",
+                "phoneNumber": "9876543227",
                 "email": "validation.pin.short@example.com",
                 "pin": "12345"
             }
@@ -866,7 +866,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543228",
+                "phoneNumber": "9876543228",
                 "email": "validation.pin.characters@example.com",
                 "pin": "Test@123"
             }
@@ -903,7 +903,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543229",
+                "phoneNumber": "9876543229",
                 "verificationCode": "12345"
             }
             """;
@@ -938,7 +938,7 @@ class ConnectproBackendApplicationTests {
 
         String request = """
             {
-                "phoneNumber": "+919876543230",
+                "phoneNumber": "9876543230",
                 "pin": "WrongPin123"
             }
             """;

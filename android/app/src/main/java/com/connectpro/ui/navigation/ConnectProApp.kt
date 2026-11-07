@@ -1,5 +1,9 @@
+
 package com.connectpro.ui.navigation
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,33 +12,33 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.unit.dp
 
+import com.connectpro.data.auth.AuthRepository
+import com.connectpro.data.location.LocationPermissionManager
+import com.connectpro.data.network.ApiClient
 import com.connectpro.ui.screens.ActivityScreen
+import com.connectpro.ui.screens.AuthScreen
 import com.connectpro.ui.screens.HomeScreen
 import com.connectpro.ui.screens.ProfileScreen
 import com.connectpro.ui.screens.TrustedContactsScreen
-import com.connectpro.data.auth.AuthRepository
-import com.connectpro.data.network.ApiClient
-import com.connectpro.ui.screens.AuthScreen
 
 import kotlinx.coroutines.launch
 
@@ -73,6 +77,10 @@ fun ConnectProApp() {
         AuthRepository(apiClient)
     }
 
+    val locationPermissionManager = remember {
+        LocationPermissionManager(context.applicationContext)
+    }
+
     val coroutineScope = rememberCoroutineScope()
 
     var isAuthenticated by rememberSaveable {
@@ -81,6 +89,37 @@ fun ConnectProApp() {
 
     var selectedDestination by rememberSaveable {
         mutableStateOf(AppDestination.HOME)
+    }
+
+    // Initial location permission request.
+    // This is attempted only once after the user enters the
+    // authenticated part of the application.
+    val initialLocationPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) {
+            // Android stores the actual permission decision.
+            // No automatic retry is performed here.
+        }
+
+    LaunchedEffect(isAuthenticated) {
+        if (
+            isAuthenticated &&
+            !locationPermissionManager.hasCompletedInitialRequest()
+        ) {
+            // Mark it before opening the system dialog so recomposition
+            // or returning to this screen cannot trigger another prompt.
+            locationPermissionManager.markInitialRequestCompleted()
+
+            if (!locationPermissionManager.hasLocationPermission()) {
+                initialLocationPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    )
+                )
+            }
+        }
     }
 
     if (!isAuthenticated) {

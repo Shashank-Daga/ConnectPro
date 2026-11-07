@@ -1,3 +1,4 @@
+
 package com.connectpro.data.emergency
 
 import retrofit2.http.Body
@@ -14,6 +15,11 @@ interface EmergencyIncidentApi {
 
     @POST("api/v1/emergencies/{incidentId}/activate")
     suspend fun activateIncident(
+        @Path("incidentId") incidentId: String
+    ): EmergencyIncidentResponse
+
+    @POST("api/v1/emergencies/{incidentId}/cancel")
+    suspend fun cancelIncident(
         @Path("incidentId") incidentId: String
     ): EmergencyIncidentResponse
 
